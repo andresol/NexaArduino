@@ -84,7 +84,7 @@ void detectSyncBit() {
       #if defined(DEBUG)
         Serial.print("Start bit detected.");
         Serial.print("t1:" + t1);
-        Serial.print("t2:" + t2);
+        Serial.println("t2:" + t2);
       #endif
       break;
     }
@@ -106,7 +106,6 @@ void loop() {
     unsigned int unit = 0;
     unsigned int button = 0;
     unsigned int dim = 0;
-
     unsigned int rest;
 
     detectSyncBit();
@@ -120,8 +119,11 @@ void loop() {
         } else if (t > NEXA_T_1_LOW && t < NEXA_T_1_HIGH) {
             bit = 1;
         } else {
-            i = 0;
-            break;
+          #if defined(DEBUG)
+            Serial.println("Not a 0 or 1 bit. Don't care. Just quit. Pulse is: " + t);
+          #endif
+          i = 0;
+          break;
         }
 
         if (i % 2 == 1) {
@@ -130,10 +132,12 @@ void loop() {
                    rest <<= 1;
                    rest |= prevBit;
                 } else {
+                  #if defined(DEBUG)
+                    Serial.println("Redundant check failed. ");
+                  #endif
                   i = 0;
                   break;
                 }
-                
             }
 
             if (i < GROUP_CODE_START) { // Get the unique code.
@@ -150,6 +154,9 @@ void loop() {
               button <<= 1;
               button |= prevBit;
             } else if (i >= DIM_LEVEL_CODE_START && rest == 0) { // Rest. Dim if bit 53-56 is 0
+              #if defined(DEBUG)
+                Serial.println("Using dim.");
+              #endif
               dim <<= 1;
               dim |= prevBit;
             } else if (i >= DIM_LEVEL_CODE_START && rest != 0) { 
@@ -173,8 +180,6 @@ void loop() {
     }
 
 }
-
-
 
 void printResult(unsigned long sender, bool group, bool on, unsigned int unit, unsigned int button, unsigned int dim) {
     Serial.print("sender ");
