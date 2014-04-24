@@ -132,8 +132,8 @@ void loop() {
     //Print message
     if (i > 0 && getBitType(t) == PAUSE) {
         printResult(unique , group, on, unit); 
+        delay(100);
     }
-    delay(100);
 }
 
 
