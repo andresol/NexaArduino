@@ -1,6 +1,8 @@
 
 // T Hight T Low = 0
 // T Hight 5T Low = 1
+// T Hight 10T Low = SYNC
+// T Hight 40T Low = PAUSE
 // A packet is in total 65 bits.
 // Every other bit is the is redundant data, just the inverted value of the former bit.
 // ’1′ -> 10
@@ -25,186 +27,134 @@
 // GO was replaced by ’0000′ (four zeroes in a row) if using Dim.
 
 #define NEXA_T 250
-#define DEBUG 0
-#define SLACK 25
-#define PACKET_SIZE 65
+//#define DEBUG 0
+#define SLACK 50
+#define PACKET_SIZE 64
+#define RX_PIN 2// Input of 433 MHz receiver
 
-// Defining the 4 types of bit format nexa uses.
-#define NEXA_T_SYNC_LOW (NEXA_T * 10) - (SLACK * 10)
-#define NEXA_T_SYNC_HIGH (NEXA_T * 10) + (SLACK * 10)
+//BITS
+#define ZERO 0
+#define ONE 1
+#define SYNC 2
+#define PAUSE 3
+#define ERR 4
 
-#define NEXA_T_PAUSE_LOW (NEXA_T * 40) - (SLACK * 40)
-#define NEXA_T_PAUSE_HIGH (NEXA_T * 40) + (SLACK * 40)
-
-#define NEXA_T_1_LOW (NEXA_T * 5) + (SLACK * 5)
-#define NEXA_T_1_HIGH (NEXA_T * 5) - (SLACK * 5)
-
-#define NEXA_T_0_LOW NEXA_T - SLACK
-#define NEXA_T_0_HIGH NEXA_T + SLACK
-
-// Defining bit size and start
-#define UNIQUE_CODE_SIZE 26
-#define UNIQUE_CODE_START 0
-
-#define GROUP_CODE_SIZE 1
-#define GROUP_CODE_START (UNIQUE_CODE_SIZE * 2) + 1 //53
-
-#define ONOFF_CODE_SIZE 1
-#define ONOFF_CODE_START GROUP_CODE_START + (GROUP_CODE_SIZE * 2) //55
-
-#define UNIT_CODE_SIZE 2
-#define UNIT_CODE_START ONOFF_CODE_START + (ONOFF_CODE_SIZE * 2) //57
-
-#define BUTTON_CODE_SIZE 2
-#define BUTTON_CODE_START UNIT_CODE_START + (UNIT_CODE_SIZE * 2) //61
-
-#define DIM_LEVEL_CODE_SIZE 4
-#define DIM_LEVEL_CODE_START BUTTON_CODE_START + (BUTTON_CODE_SIZE * 2) //65
-
-#define PACKET_SIZE DIM_LEVEL_CODE_START + (DIM_LEVEL_CODE_SIZE * 2)
-
-const int rxPin = 2; // Input of 433 MHz receiver
+//DATA
+#define UNIQUE 52
+#define GROUP 53
+#define ONOFF 55
 
 
-void setup() {
-    pinMode(rxPin, INPUT); //Input of 433 MHz receiver
-    Serial.begin(9600);
-    Serial.println("Nexa Receiver");
+int getBitType(unsigned long t) {
+   if (t > (NEXA_T - (SLACK * 2)) && t < (NEXA_T + (SLACK * 3))) {
+     return ZERO;
+   } else if (t > (NEXA_T * 3) && t < (NEXA_T * 7)) {
+     return ONE;
+   } else if (t > (NEXA_T * 30) && (t < NEXA_T * 50)) {
+     return PAUSE;
+   } else if (t > (NEXA_T * 7) && (t < NEXA_T * 13)) {
+     return SYNC;
+   } else {
+#if defined(DEBUG)
+     if (t > 100) {
+       Serial.print("Cannot convert ");
+       Serial.print(t);
+       Serial.println("to bit");
+     }
+#endif
+     return ERR;
+   }
 }
 
-void detectSyncBit() {
-  unsigned long t1 = 0; // Latch 1 time.
-  unsigned long t2 = 0; //  Latch 2 time.
-  // Find the first Sync bit.
-  while (true) {
-    t1 = pulseIn(rxPin, LOW, 1000000); // SYNC
-    t2 = pulseIn(rxPin, LOW, 1000000); // PAUSE
-    
-    if (t1 > NEXA_T_SYNC_LOW && t1 < NEXA_T_SYNC_HIGH && t2 > NEXA_T_PAUSE_LOW && t2 < NEXA_T_PAUSE_HIGH) {
-      #if defined(DEBUG)
-        Serial.print("Start bit detected.");
-        Serial.print("t1:" + t1);
-        Serial.println("t2:" + t2);
-      #endif
-      break;
-    }
-  }
+void setup() {
+    pinMode(RX_PIN, INPUT); // Input of 433 MHz
+
+    Serial.begin(9600);
+    Serial.println("Starting...");
 }
 
 
 void loop() {
     int i = 0;
-    
     unsigned long t = 0;
 
     byte prevBit = 0;
     byte bit = 0;
 
-    unsigned long sender = 0;
+    unsigned long unique = 0;
     bool group = false;
     bool on = false;
     unsigned int unit = 0;
-    unsigned int button = 0;
-    unsigned int dim = 0;
-    unsigned int rest;
 
-    detectSyncBit();
+    while (getBitType(t) != PAUSE) {
+        t = pulseIn(RX_PIN, LOW, 1000000);
+    }
+
+    while (getBitType(t) != SYNC) {
+        t = pulseIn(RX_PIN, LOW, 1000000);
+    }
 
     // data collection from reciever circuit
     while (i < PACKET_SIZE) {
-        t = pulseIn(rxPin, LOW, 1000000);
+        t = pulseIn(RX_PIN, LOW, 1000000);
 
-        if (t > NEXA_T_0_LOW && t < NEXA_T_0_HIGH) {
-            bit = 0;
-        } else if (t > NEXA_T_1_LOW && t < NEXA_T_1_HIGH) {
-            bit = 1;
+        if (getBitType(t) == ZERO) {
+            bit = ZERO;
+        } else if (getBitType(t) == ONE) {
+            bit = ONE;
         } else {
-          #if defined(DEBUG)
-            Serial.println("Not a 0 or 1 bit. Don't care. Just quit. Pulse is: " + t);
-          #endif
-          i = 0;
-          break;
+            i = 0;
+            break;
         }
 
         if (i % 2 == 1) {
-            if ((prevBit ^ bit) == 0) { //Check for redundant XOR = 1 ok.
-                if ( i >= GROUP_CODE_START && i < UNIT_CODE_START) { // 53-56 is 0 if using dim.
-                   rest <<= 1;
-                   rest |= prevBit;
-                } else {
-                  #if defined(DEBUG)
-                    Serial.println("Redundant check failed. ");
-                  #endif
-                  i = 0;
-                  break;
-                }
+            if ((prevBit + bit) != 1) { // Error check. Must Be 01 or 10
+                i = 0;
+                break;
             }
 
-            if (i < GROUP_CODE_START) { // Get the unique code.
-              sender <<= 1;
-              sender |= prevBit;
-            } else if (i == GROUP_CODE_START) { // Group code
-              group = prevBit;
-            } else if (i == ONOFF_CODE_START) { // On/Off bit
-              on = prevBit;
-            } else if (i >= UNIT_CODE_START && i < BUTTON_CODE_START){ // Unit code
-              unit <<= 1;
-              unit |= prevBit;
-            } else if (i >= BUTTON_CODE_START && i < DIM_LEVEL_CODE_SIZE) { // Button code
-              button <<= 1;
-              button |= prevBit;
-            } else if (i >= DIM_LEVEL_CODE_START && rest == 0) { // Rest. Dim if bit 53-56 is 0
-              #if defined(DEBUG)
-                Serial.println("Using dim.");
-              #endif
-              dim <<= 1;
-              dim |= prevBit;
-            } else if (i >= DIM_LEVEL_CODE_START && rest != 0) { 
-              break; //Not dim.
-            } else {
-              //rest <<= 1;
-              //rest |= prevBit;
+            if (i <= UNIQUE) { 
+                unique <<= 1;
+                unique |= prevBit;
+            } else if (i == GROUP) { 
+                group = prevBit;
+            } else if (i == ONOFF) { 
+                on = prevBit;
+            } else { 
+                unit <<= 1;
+                unit |= prevBit;
             }
         }
-
         prevBit = bit;
         ++i;
     }
-    // Unit and button is inverted
-    unit = ~unit;
-    button = ~button;   
-    
-    // interpret message
-    if (i > 0) {
-        printResult(sender, group, on, unit, button, dim); // Print the result on Serial Monitor. Use this to identify your transmitter code.
+     t = pulseIn(RX_PIN, LOW, 1000000);   
+    //Print message
+    if (i > 0 && getBitType(t) == PAUSE) {
+        printResult(unique , group, on, unit); 
     }
-
+    delay(100);
 }
 
-void printResult(unsigned long sender, bool group, bool on, unsigned int unit, unsigned int button, unsigned int dim) {
-    Serial.print("sender ");
-    Serial.println(sender);
+
+void printResult(unsigned long unique , bool group, bool on, unsigned int unit) {
+   
+    Serial.print("Unique key ");
+    Serial.println(unique);
 
     if (group) {
-        Serial.println("group command");
+        Serial.println("All commands");
     } else {
-        Serial.println("no group");
+      Serial.print("Unit ");
+      Serial.println(unit);
     }
-
-    if (on) {
-        Serial.println("on");
-    } else {
-        Serial.println("off");
-    }
-
-    Serial.print("Unit: ");
-    Serial.println(unit);
-    Serial.print("Button: ");
-    Serial.println(button);
-    Serial.print("Dim: ");
-    Serial.println(dim);
     
-    Serial.println();
+    if (on) {
+        Serial.println("On");
+    } else {
+        Serial.println("Off");
+    }
 
+  Serial.println();
 
 }
