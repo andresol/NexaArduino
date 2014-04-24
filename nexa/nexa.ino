@@ -22,7 +22,7 @@
 // P = Pause, a 10 ms pause in between re-send.
 
 // SHHHH HHHH HHHH HHHH HHHH HHHH HHGO EE BB DDDD 0 P
-// was replaced by ’0000′ (four zeroes in a row).
+// GO was replaced by ’0000′ (four zeroes in a row) if using Dim.
 
 #define NEXA_T 250
 #define DEBUG 0
