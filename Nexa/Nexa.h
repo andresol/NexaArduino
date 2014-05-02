@@ -7,9 +7,11 @@
 #include "WProgram.h"
 #endif
 
-#define NEXA_T 250
+#define NEXA_T 250 //Protocol length
 #define SLACK 50
 #define PACKET_SIZE 64
+#define WAIT_TIME 100
+#define TIMEOUT 100
 
 //BITS
 #define ZERO 0

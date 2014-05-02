@@ -22,7 +22,9 @@ int connectInput(const unsigned int pin) {
 NexaMessage getMessage(const unsigned int pin) {
 	int i = 0;
     unsigned long t = 0;
-
+	unsigned long t2 = 0;
+	unsigned long now = millis();
+	
     byte prevBit = 0;
     byte bit = 0;
 	
@@ -31,18 +33,19 @@ NexaMessage getMessage(const unsigned int pin) {
 	message.on = 0;
 	message.group = 0;
 	message.unit = 0;
-	message.lastBit = -1;
+	message.lastBit = 4; //ERROR
 
-    while (getBitType(t) != PAUSE) {
-        t = pulseIn(pin, LOW, 1000000);
-    }
-
-    while (getBitType(t) != SYNC) {
-        t = pulseIn(pin, LOW, 1000000);
+    while (getBitType(t) != PAUSE && getBitType(t) != SYNC) {
+		if ((now + WAIT_TIME) > millis()) {
+			t = pulseIn(pin, LOW, NEXA_T * TIMEOUT);
+			t2 = pulseIn(pin, LOW, NEXA_T * TIMEOUT);
+		} else {
+			return message;
+		}
     }
 
     while (i < PACKET_SIZE) {
-        t = pulseIn(pin, LOW, 1000000);
+        t = pulseIn(pin, LOW, NEXA_T * TIMEOUT);
 
         if (getBitType(t) == ZERO) {
             bit = ZERO;
@@ -74,7 +77,7 @@ NexaMessage getMessage(const unsigned int pin) {
         prevBit = bit;
         ++i;
     }
-    t = pulseIn(pin, LOW, 1000000);   
+    t = pulseIn(pin, LOW, NEXA_T * TIMEOUT);   
 	message.lastBit = getBitType(t);
 	return message;
 }

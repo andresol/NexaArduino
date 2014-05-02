@@ -15,7 +15,7 @@ void loop() {
   if (message.lastBit == PAUSE) {
         printResult(message.unique , message.group, message.on, message.unit); 
         delay(100);
-   }
+  }
 }
 
 
