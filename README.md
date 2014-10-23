@@ -1,7 +1,7 @@
 NexaArduino
 =========
 
-It is a Nexa Arduino Library.  
+It is a Nexa Arduino Library (Nexa Decoder). 
 
 Implementation of the NEXA protocol for 433Mhz wireless controlling system.  
 
