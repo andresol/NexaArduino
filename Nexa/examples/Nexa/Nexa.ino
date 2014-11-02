@@ -4,7 +4,8 @@
 
 void setup() {
     connectInput(SIGNAL_IN);
-
+    pinMode(3, OUTPUT);
+    digitalWrite(3,HIGH);
     Serial.begin(9600);
     Serial.println("Starting...");
 }
@@ -12,7 +13,7 @@ void setup() {
 
 void loop() {
   NexaMessage message = getMessage(SIGNAL_IN);
-  if (message.lastBit == PAUSE) {
+  if (message.lastBit == PAUSE && message.unique > 0) {
         printResult(message.unique , message.group, message.on, message.unit); 
         delay(100);
   }
